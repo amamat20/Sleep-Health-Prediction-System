@@ -1,83 +1,138 @@
-# Sleep Disorder Prediction Platform
+# 😴 Sleep Disorder Prediction System
 
-![Project Status](https://img.shields.io/badge/status-completed-brightgreen) [![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
-
-A **machine learning-powered web application** that predicts potential sleep disorders based on lifestyle and health data. The platform integrates a **Next.js frontend** with a **FastAPI backend** to deliver real-time predictions.
+A machine learning system that predicts potential sleep disorders — **None**, **Insomnia**, or **Sleep Apnea** — based on lifestyle and health data. Built with Python, LightGBM, and served via a FastAPI backend integrated with a Next.js frontend.
 
 ---
 
-## Dataset
+## 📁 Dataset
 
-* **Source**: [Sleep Health and Lifestyle Dataset](https://www.kaggle.com/datasets/uom190346a/sleep-health-and-lifestyle-dataset) from Kaggle.
-* **Description**: Contains lifestyle and health indicators influencing sleep quality, used for training and evaluating the ML model.
-
----
-
-## Technologies Used
-
-* **Python 3.11**: Backend logic and ML integration.
-* **FastAPI**: High-performance backend API framework.
-* **Pydantic**: Data validation & schema management.
-* **Joblib**: Model serialization/loading.
-* **scikit-learn / LightGBM**: ML models.
-* **Next.js (React)**: Frontend framework.
-* **React Three Fiber**: 3D & visual rendering.
-* **shadcn/ui**: Prebuilt UI components.
-* **TailwindCSS**: Utility-first CSS styling.
-* **Framer Motion**: Smooth animations.
-* **Zod**: Frontend schema validation.
+- **Source:** [Sleep Health and Lifestyle Dataset](https://www.kaggle.com/) — Kaggle
+- **Size:** 374 entries, 13 columns
+- **Target Variable:** `Sleep Disorder` (None, Sleep Apnea, Insomnia)
+- **Class Distribution:**
+  - None: 219 samples (58.6%)
+  - Sleep Apnea: 78 samples (20.9%)
+  - Insomnia: 77 samples (20.6%)
 
 ---
 
-## Features
+## 🧠 Machine Learning Pipeline
 
-### Frontend
+### 1. Initial Data Understanding
+- Inspected dataset structure: 374 rows × 13 columns
+- Identified data types: 7 integer, 1 float, 5 object columns
+- No missing values detected across all columns
+- Descriptive statistics computed for all numeric features
 
-* **User-Friendly Form UI** with responsive design.
-* **Form Validation** using Zod + React Hook Form.
-* **Interactive Animations** via Framer Motion.
-* **3D Visuals & Effects** using React Three Fiber.
-* **Dark Mode Support** with next-themes.
+### 2. Data Cleaning
+Key cleaning steps performed:
+- **Column Renaming** — Renamed all columns to descriptive Indonesian names (e.g., `Sleep Duration` → `Durasi_Tidur`)
+- **Irrelevant Column Removal** — Dropped `Person ID` as it has no predictive value
+- **Missing Value Handling** — Confirmed zero missing values; median/mode imputation strategy prepared
+- **Data Consistency** — Standardized `Pekerjaan` (Occupation) text to Title Case
+- **Label Encoding** — Encoded `Gangguan_Tidur` (Sleep Disorder): `None=0`, `Sleep Apnea=1`, `Insomnia=2`
+- **Blood Pressure Splitting** — Parsed `Tekanan_Darah` (e.g., `120/80`) into separate `Sistolik` and `Diastolik` numeric features
+
+### 3. Exploratory Data Analysis (EDA)
+
+#### Univariate Analysis
+- Sleep duration distributes bimodally — concentrated around 6–7h and 7.5–8.5h
+- Stress level and heart rate show distinct patterns across disorder classes
+
+#### Bivariate Analysis
+- Sleep Apnea patients tend to have **higher heart rate** and **shorter sleep duration**
+- Insomnia patients show the **lowest sleep quality** scores
+- Nurses and Sales Representatives have the highest disorder prevalence
+
+#### Multivariate Analysis — Correlation Heatmap
+
+| Feature Pair | Correlation |
+|---|---|
+| Kualitas_Tidur ↔ Tingkat_Stres | **-0.90** (strong negative) |
+| Durasi_Tidur ↔ Tingkat_Stres | -0.81 |
+| Tingkat_Aktivitas_Fisik ↔ Langkah_Harian | **0.77** (strong positive) |
+| Denyut_Jantung ↔ Tingkat_Stres | 0.67 |
+
+### 4. Data Preparation for Modeling
+
+- **Feature/Target Split:** X = 12 features, y = `Gangguan_Tidur`
+- **Train-Test Split:** 80% train (299 samples) / 20% test (75 samples), stratified
+- **Preprocessing Pipeline (ColumnTransformer):**
+  - Numeric features → `StandardScaler`
+  - Categorical features (`Jenis_Kelamin`, `Pekerjaan`, `Kategori_BMI`) → `OneHotEncoder`
+  - Final processed shape: (299, 25) train / (75, 25) test
+
+### 5. Model Training & Evaluation
+
+Five models were trained and compared on the same preprocessing pipeline:
+
+| Model | Accuracy | Precision | Recall | F1 Score | ROC AUC |
+|---|---|---|---|---|---|
+| Baseline (Majority Class) | 0.5867 | — | — | — | — |
+| Logistic Regression | 0.8933 | 0.8993 | 0.8933 | 0.8947 | 0.9045 |
+| Logistic Regression (Balanced) | 0.8800 | 0.8893 | 0.8800 | 0.8824 | 0.9193 |
+| Decision Tree | 0.8667 | 0.8724 | 0.8667 | 0.8581 | 0.8538 |
+| Random Forest | 0.8667 | 0.8724 | 0.8667 | 0.8581 | 0.9172 |
+| **LightGBM** ⭐ | **0.9200** | **0.9205** | **0.9200** | **0.9186** | **0.9212** |
+
+> ⚠️ **Note on Random Forest:** Despite decent overall accuracy, Random Forest showed critically low recall (0.56) for Sleep Apnea — meaning it missed nearly half of actual Sleep Apnea cases. This makes it unsuitable for health-related use cases where false negatives are costly.
+
+### 6. Model Interpretation
+
+#### Top 15 Feature Importance (LightGBM)
+
+| Rank | Feature | Importance Score |
+|---|---|---|
+| 1 | Durasi_Tidur (Sleep Duration) | 982 |
+| 2 | Usia (Age) | 799 |
+| 3 | Langkah_Harian (Daily Steps) | 197 |
+| 4 | Sistolik (Systolic BP) | 194 |
+| 5 | Denyut_Jantung (Heart Rate) | 193 |
+| 6 | Tingkat_Aktivitas_Fisik (Physical Activity) | 152 |
+| 7 | Kualitas_Tidur (Sleep Quality) | 103 |
+| 8 | Diastolik (Diastolic BP) | 103 |
+| 9 | Kategori_BMI_Normal | 58 |
+| 10 | Tingkat_Stres (Stress Level) | 47 |
+
+#### Key Findings
+- **Sleep duration** is the single most important predictor — significantly lower in Insomnia patients
+- **Age** is the second strongest signal — Sleep Apnea risk increases with age
+- **Physiological indicators** (blood pressure, heart rate) are more predictive than occupation or gender
+
+### 7. Final Model
+
+- **Chosen Model:** LightGBM (via scikit-learn Pipeline)
+- **Why LightGBM:** Best F1 Score (0.9186), best ROC AUC (0.9212), and most balanced performance across all three disorder classes
+- **Model Serialization:** Saved as `lightgbm_sleep_pipeline.pkl` using `joblib` — includes full preprocessing pipeline, ready for direct inference
+
+---
+
+## 🛠️ Technologies Used
+
+### Machine Learning
+- **Python 3.11** — Core language
+- **Pandas & NumPy** — Data manipulation
+- **Scikit-learn** — Preprocessing, pipeline, model evaluation
+- **LightGBM** — Gradient boosting classifier
+- **Matplotlib & Seaborn** — EDA visualizations
+- **Joblib** — Model serialization
 
 ### Backend
+- **FastAPI** — High-performance REST API
+- **Pydantic** — Data validation & schema management
+- **python-dotenv** — Environment management
 
-* **REST API** built with FastAPI.
-* **Form Validation** via Pydantic schemas.
-* **Secure API** with API key authentication.
-* **Environment Management** using python-dotenv.
-
-### Machine Learning Model
-
-* **Preprocessing** with Pandas & Scikit-learn.
-* **Prediction**: Classifies sleep disorder as *None*, *Insomnia*, or *Sleep Apnea*.
-* **Deployment**: Model serialized with Joblib, served via FastAPI.
-
----
-
-## Demo
-
-### Landing Page
-
-<img src="https://github.com/user-attachments/assets/0b967e66-051b-47c7-8cc3-a5437751d9b8" width="600">
-<img src="https://github.com/user-attachments/assets/43cd2f06-5710-4245-bbc1-1b12879f6d0e" width="600">
-
-### Prediction Form
-
-<img src="https://github.com/user-attachments/assets/4c2715e6-5633-43c3-b9f6-c0304bf70b33" width="600">
-
-### Prediction Result
-
-<img src="https://github.com/user-attachments/assets/e8233472-5aaa-4a7a-8688-507bdc7d1dc6" width="600">
-<img src="https://github.com/user-attachments/assets/62d654c2-9f22-4902-bdd4-cf94a467e82a" width="600">
-<img src="https://github.com/user-attachments/assets/0de499c3-7137-4dc4-8c91-c7eb33756070" width="600">
-
-### Open API Swagger UI
-
-<img src="https://github.com/user-attachments/assets/56ad4ad0-b9c9-4bce-a48b-4ec2d60edd25" width="600">
+### Frontend
+- **Next.js (React)** — Frontend framework
+- **React Three Fiber** — 3D visual rendering
+- **shadcn/ui** — Prebuilt UI components
+- **TailwindCSS** — Utility-first CSS styling
+- **Framer Motion** — Animations
+- **Zod + React Hook Form** — Frontend validation
 
 ---
 
-## Setup
+## 🚀 Setup & Installation
 
 ### Backend (FastAPI)
 
@@ -100,28 +155,24 @@ cd frontend
 npm install
 npm run dev
 ```
-.env.local
-```bash
+
+Create `.env.local`:
+
+```env
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 NEXT_PUBLIC_API_KEY=apikeystress
 ```
 
 App runs on: `http://localhost:3000`
 
----
-
-## Testing (pytest)
+### Testing
 
 ```bash
 cd backend
 pytest
 ```
 
----
-
-## Docker Setup
-
-### Backend
+### Docker (Backend)
 
 ```bash
 cd backend
@@ -129,19 +180,34 @@ docker build -t project-ml-backend .
 docker run -d -p 8000:8000 --name project-ml-backend project-ml-backend
 ```
 
-Backend accessible at: `http://localhost:8000`
+---
 
+## 📊 API Prediction Input
+
+The model accepts the following features as input:
+
+| Feature | Type | Description |
+|---|---|---|
+| Jenis_Kelamin | categorical | Gender (Male / Female) |
+| Usia | numeric | Age (years) |
+| Pekerjaan | categorical | Occupation |
+| Durasi_Tidur | numeric | Sleep duration (hours) |
+| Kualitas_Tidur | numeric | Sleep quality score (1–9) |
+| Tingkat_Aktivitas_Fisik | numeric | Physical activity level (30–90) |
+| Tingkat_Stres | numeric | Stress level (1–8) |
+| Kategori_BMI | categorical | BMI category |
+| Tekanan_Darah | string | Blood pressure (e.g., `120/80`) |
+| Denyut_Jantung | numeric | Resting heart rate (bpm) |
+| Langkah_Harian | numeric | Daily steps count |
+
+**Output:** Predicted class (`None`, `Sleep Apnea`, or `Insomnia`) + probability scores per class
 
 ---
 
-## Contributions
+## 📄 License
 
-Contributions are welcome! Fork, submit issues, or open pull requests.
-
-Thanks to **Bayu Putra Pamungkas** for model support.
+Licensed under the MIT License. See `LICENSE` for details.
 
 ---
 
-## License
-
-Licensed under the **MIT License**. See [LICENSE](LICENSE) for details.
+*Model developed by Bayu Putra Pamungkas as part of the Sleep Health Prediction System project.*
